@@ -38,19 +38,6 @@ func gcpMetadataClient() *metadata.Client {
 	return c
 }
 
-type awsCredentials struct {
-	Version         int       `json:"Version"`
-	AccessKeyId     string    `json:"AccessKeyId"`
-	SecretAccessKey string    `json:"SecretAccessKey"`
-	SessionToken    string    `json:"SessionToken"`
-	Expiration      time.Time `json:"Expiration"`
-}
-
-// Custom stringer for awsCredentials stuct
-func (c awsCredentials) String() string {
-	return fmt.Sprintf("{\"Version\": %d, \"AccessKeyId\": \"%s\", \"SecretAccessKey\": \"%s\", \"SessionToken\": \"%s\", \"Expiration\": \"%s\"}", 1, c.AccessKeyId, c.SecretAccessKey, c.SessionToken, c.Expiration.Format("2006-01-02T15:04:05-07:00"))
-}
-
 // This example demonstrates how to use your own transport when using this package.
 func main() {
 	// Retrieve information from GCP API
