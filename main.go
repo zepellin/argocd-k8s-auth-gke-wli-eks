@@ -84,7 +84,7 @@ func main() {
 
 	sess, err := session.NewSession()
 	if err != nil {
-		log.Fatal("error creating new AWS session: %s", err)
+		log.Fatalf("error creating new AWS session: %s", err)
 	}
 
 	stsAPI := sts.New(sess)
@@ -92,7 +92,7 @@ func main() {
 	request.HTTPRequest.Header.Add(clusterIDHeader, eksClusterName)
 	presignedURLString, err := request.Presign(requestPresignParam)
 	if err != nil {
-		log.Fatal("error presigning AWS request: %s", err)
+		log.Fatalf("error presigning AWS request: %s", err)
 	}
 
 	token := v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString))
