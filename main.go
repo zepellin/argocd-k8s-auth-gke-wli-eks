@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -40,6 +40,8 @@ func gcpMetadataClient() *metadata.Client {
 
 // This example demonstrates how to use your own transport when using this package.
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 	// Retrieve information from GCP API
 	c := gcpMetadataClient()
 
@@ -48,12 +50,14 @@ func main() {
 
 	projectId, err := c.ProjectID()
 	if err != nil {
-		log.Fatal("Couldn't connect to GCP metadata server")
+		logger.Error("Couldn't connect to GCP metadata server")
+		os.Exit(1)
 	}
 
 	hostname, err := c.Hostname()
 	if err != nil {
-		log.Fatal("Couldn't connect to GCP metadata server")
+		logger.Error("Couldn't connect to GCP metadata server")
+		os.Exit(1)
 	}
 
 	client := &http.Client{}
@@ -68,7 +72,8 @@ func main() {
 	response.Body.Close()
 
 	if err != nil {
-		log.Fatal("Couldn't connect to metadata server")
+		logger.Error("Couldn't connect to metadata server")
+		os.Exit(1)
 	}
 
 	// Set custom session identifier
@@ -84,7 +89,8 @@ func main() {
 
 	sess, err := session.NewSession()
 	if err != nil {
-		log.Fatalf("error creating new AWS session: %s", err)
+		logger.Error("error creating new AWS session: %s", err)
+		os.Exit(1)
 	}
 
 	stsAPI := sts.New(sess)
@@ -92,7 +98,8 @@ func main() {
 	request.HTTPRequest.Header.Add(clusterIDHeader, eksClusterName)
 	presignedURLString, err := request.Presign(requestPresignParam)
 	if err != nil {
-		log.Fatalf("error presigning AWS request: %s", err)
+		logger.Error("error presigning AWS request: %s", err)
+		os.Exit(1)
 	}
 
 	token := v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString))
