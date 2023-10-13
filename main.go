@@ -79,7 +79,13 @@ func main() {
 	}
 	response.Body.Close()
 
-	f, err := os.CreateTemp("", "token")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		logger.Error("%s", err)
+		os.Exit(1)
+	}
+
+	f, err := os.CreateTemp(homeDir, "token")
 
 	if err != nil {
 		logger.Error("%s", err)
