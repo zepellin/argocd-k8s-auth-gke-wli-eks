@@ -79,8 +79,7 @@ func main() {
 	}
 	response.Body.Close()
 
-	// TODO: implement reading credentials from other than file in NewWebIdentityRoleProvider
-	f, err := os.Create("token")
+	f, err := os.CreateTemp("", "token")
 
 	if err != nil {
 		logger.Error("%s", err)
@@ -110,11 +109,13 @@ func main() {
 	awsCredsCache := aws.NewCredentialsCache(stscreds.NewWebIdentityRoleProvider(
 		stsAssumeClient,
 		awsAssumeRoleArn,
-		stscreds.IdentityTokenFile("token"),
+		stscreds.IdentityTokenFile(f.Name()),
 		func(o *stscreds.WebIdentityRoleOptions) {
 			o.RoleSessionName = sessionIdentifier
 		}),
 	)
+
+	defer os.Remove(f.Name())
 
 	awsCredentials, err := awsCredsCache.Retrieve(ctx)
 	if err != nil {
