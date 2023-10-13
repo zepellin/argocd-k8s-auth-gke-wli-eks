@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,22 +13,26 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 )
 
 const (
-	clusterIDHeader = "x-k8s-aws-id"
+	eksClusterIdHeader = "x-k8s-aws-id"
 	// The sts GetCallerIdentity request is valid for 15 minutes regardless of this parameters value after it has been
 	// signed, but we set this unused parameter to 60 for legacy reasons (we check for a value between 0 and 60 on the
 	// server side in 0.3.0 or earlier).  IT IS IGNORED.  If we can get STS to support x-amz-expires, then we should
 	// set this parameter to the actual expiration, and make it configurable.
 	requestPresignParam = 60
+	// eksClusterName      = "seom"
 	// The actual token expiration (presigned STS urls are valid for 15 minutes after timestamp in x-amz-date).
 	presignedURLExpiration = 15 * time.Minute
-	v1Prefix               = "k8s-aws-v1."
+	tokenV1Prefix          = "k8s-aws-v1."
 )
 
 func gcpMetadataClient() *metadata.Client {
@@ -40,13 +45,15 @@ func gcpMetadataClient() *metadata.Client {
 
 // This example demonstrates how to use your own transport when using this package.
 func main() {
+	awsAssumeRoleArn := os.Args[1]
+	eksClusterName := os.Args[2]
+	stsRegion := os.Args[3]
+
+	ctx := context.Background()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// Retrieve information from GCP API
 	c := gcpMetadataClient()
-
-	awsAssumeRoleArn := os.Args[1]
-	eksClusterName := os.Args[2]
 
 	projectId, err := c.ProjectID()
 	if err != nil {
@@ -65,44 +72,77 @@ func main() {
 	req.Header.Set("Metadata-Flavor", "Google")
 	response, _ := client.Do(req)
 
-	body, error := io.ReadAll(response.Body)
-	if error != nil {
-		fmt.Println(error)
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		logger.Error("Couldn't connect to GCP metadata server %s", err)
+		os.Exit(1)
 	}
 	response.Body.Close()
 
+	// TODO: implement reading credentials from other than file in NewWebIdentityRoleProvider
+	f, err := os.Create("token")
+
 	if err != nil {
-		logger.Error("Couldn't connect to metadata server")
+		logger.Error("%s", err)
+		os.Exit(1)
+	}
+
+	defer f.Close()
+
+	_, err2 := f.Write(body)
+
+	if err2 != nil {
+		logger.Error("%s", err2)
 		os.Exit(1)
 	}
 
 	// Set custom session identifier
 	sessionIdentifier := fmt.Sprintf("%s-%s", projectId, hostname)[:32]
 
-	// Here we start with AWS stuff
-	input := &sts.AssumeRoleWithWebIdentityInput{
-		RoleArn:          aws.String(awsAssumeRoleArn),
-		RoleSessionName:  aws.String(sessionIdentifier),
-		WebIdentityToken: aws.String(string(body)),
-		DurationSeconds:  aws.Int64(3600),
-	}
-
-	sess, err := session.NewSession()
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion))
 	if err != nil {
-		logger.Error("error creating new AWS session: %s", err)
+		logger.Error("failed to load default AWS config, %s" + err.Error())
 		os.Exit(1)
 	}
 
-	stsAPI := sts.New(sess)
-	request, _ := stsAPI.AssumeRoleWithWebIdentityRequest(input)
-	request.HTTPRequest.Header.Add(clusterIDHeader, eksClusterName)
-	presignedURLString, err := request.Presign(requestPresignParam)
+	stsAssumeClient := sts.NewFromConfig(cfg)
+
+	awsCredsCache := aws.NewCredentialsCache(stscreds.NewWebIdentityRoleProvider(
+		stsAssumeClient,
+		awsAssumeRoleArn,
+		stscreds.IdentityTokenFile("token"),
+		func(o *stscreds.WebIdentityRoleOptions) {
+			o.RoleSessionName = sessionIdentifier
+		}),
+	)
+
+	awsCredentials, err := awsCredsCache.Retrieve(ctx)
 	if err != nil {
-		logger.Error("error presigning AWS request: %s", err)
+		logger.Error("Couldn't retrieve AWS credentials %s", err)
 		os.Exit(1)
 	}
 
-	token := v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString))
+	cfg2, err := config.LoadDefaultConfig(ctx, config.WithRegion(stsRegion),
+		config.WithCredentialsProvider(credentials.StaticCredentialsProvider{
+			Value: awsCredentials,
+		}),
+	)
+	if err != nil {
+		logger.Error("Couldn't load AWS config using retrieved credentials %s", err)
+		os.Exit(1)
+	}
+
+	stsClient := sts.NewFromConfig(cfg2)
+
+	presignclient := sts.NewPresignClient(stsClient)
+	presignedURLString, err := presignclient.PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}, func(opt *sts.PresignOptions) {
+		opt.Presigner = newCustomHTTPPresignerV4(opt.Presigner, map[string]string{
+			eksClusterIdHeader: eksClusterName,
+			"X-Amz-Expires":    "60",
+		})
+	})
+
+	token := tokenV1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString.URL))
 	// Set token expiration to 1 minute before the presigned URL expires for some cushion
 	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
 	_, _ = fmt.Fprint(os.Stdout, formatJSON(token, tokenExpiration))
@@ -134,4 +174,27 @@ func formatJSON(token string, expiration time.Time) string {
 	}
 	enc, _ := json.Marshal(execInput)
 	return string(enc)
+}
+
+type customHTTPPresignerV4 struct {
+	client  sts.HTTPPresignerV4
+	headers map[string]string
+}
+
+func newCustomHTTPPresignerV4(client sts.HTTPPresignerV4, headers map[string]string) sts.HTTPPresignerV4 {
+	return &customHTTPPresignerV4{
+		client:  client,
+		headers: headers,
+	}
+}
+
+func (p *customHTTPPresignerV4) PresignHTTP(
+	ctx context.Context, credentials aws.Credentials, r *http.Request,
+	payloadHash string, service string, region string, signingTime time.Time,
+	optFns ...func(*v4.SignerOptions),
+) (url string, signedHeader http.Header, err error) {
+	for key, val := range p.headers {
+		r.Header.Add(key, val)
+	}
+	return p.client.PresignHTTP(ctx, credentials, r, payloadHash, service, region, signingTime, optFns...)
 }
