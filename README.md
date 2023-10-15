@@ -1,6 +1,6 @@
 # ArgoCD external cluster EKS config provider for GKE (workload identity)
 
-The purpose of this application is to facilitate token-less authentication of EKS clusters in ArgoCD running on Google Kubernetes Engine (GKE) clusters with workload identity. 
+The purpose of this application is to facilitate identity based (without use of any permanents credentials) authentication of EKS clusters in ArgoCD running on Google Kubernetes Engine (GKE) clusters with workload identity. 
 
 ## Table of Contents
 
