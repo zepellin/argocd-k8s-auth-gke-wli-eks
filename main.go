@@ -60,7 +60,7 @@ func createSessionIdentifier(c *metadata.Client) (string, error) {
 	return (fmt.Sprintf("%s-%s", projectId, hostname)[:32]), nil
 }
 
-// Retrieves GCE identity token (JWT) and retuens [customIdentityTokenRetriever instance
+// Retrieves GCE identity token (JWT) and retuens [customIdentityTokenRetriever] instance
 // containing the token. This is to be then used in [stscreds.NewWebIdentityRoleProvider]
 // function.
 func gcpRetrieveGCEVMToken(ctx context.Context) (customIdentityTokenRetriever, error) {
