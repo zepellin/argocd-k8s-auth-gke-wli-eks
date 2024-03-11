@@ -22,7 +22,7 @@ require (
 
 require (
 	cloud.google.com/go/compute v1.14.0 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.27.4
+	github.com/aws/aws-sdk-go-v2/config v1.27.7
 	github.com/aws/smithy-go v1.20.1 // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
