@@ -1,11 +1,11 @@
 module argocd-k8s-auth-gke-wli-eks
 
 go 1.21
-toolchain go1.22.4
+toolchain go1.22.5
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
-	github.com/aws/aws-sdk-go-v2 v1.26.1
+	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.11
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6
 )
@@ -24,7 +24,7 @@ require (
 require (
 	cloud.google.com/go/compute v1.14.0 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.27.11
-	github.com/aws/smithy-go v1.20.2 // indirect
+	github.com/aws/smithy-go v1.20.4 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
