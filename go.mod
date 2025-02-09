@@ -1,7 +1,8 @@
 module argocd-k8s-auth-gke-wli-eks
 
-go 1.21
-toolchain go1.22.4
+go 1.22.0
+
+toolchain go1.23.6
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
@@ -35,8 +36,8 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/apimachinery v0.30.2
-	k8s.io/client-go v0.30.2
+	k8s.io/apimachinery v0.30.9
+	k8s.io/client-go v0.30.9
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
