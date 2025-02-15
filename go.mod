@@ -2,7 +2,7 @@ module argocd-k8s-auth-gke-wli-eks
 
 go 1.23.0
 
-toolchain go1.23.6
+toolchain go1.24.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
