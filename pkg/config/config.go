@@ -27,7 +27,8 @@ const (
 // Config holds the application configuration
 type Config struct {
 	// Logging configuration
-	LogLevel string
+	LogVerbosity int    // Verbosity level for logging (0-5)
+	LogToFile    string // Path to log file (empty for stderr)
 
 	// AWS configuration
 	AWSRoleARN     string
@@ -47,7 +48,8 @@ type Config struct {
 // NewConfig creates a new configuration instance with defaults
 func NewConfig() *Config {
 	return &Config{
-		LogLevel:        "info",
+		LogVerbosity:    0,
+		LogToFile:       "",
 		STSRegion:       DefaultSTSRegion,
 		TokenExpiration: DefaultTokenExpiryMinutes * time.Minute,
 		HTTPTimeout:     DefaultHTTPTimeout,
@@ -56,7 +58,8 @@ func NewConfig() *Config {
 
 // LoadFromFlags loads configuration from command line flags
 func (c *Config) LoadFromFlags() error {
-	flag.StringVar(&c.LogLevel, "log-level", "info", "Minimum log level (debug, info, warn, error)")
+	flag.IntVar(&c.LogVerbosity, "v", 0, "Log verbosity level (0-5)")
+	flag.StringVar(&c.LogToFile, "log-file", "", "Path to log file (empty for stderr)")
 	flag.StringVar(&c.AWSRoleARN, "rolearn", "", "AWS role ARN to assume (required)")
 	flag.StringVar(&c.EKSClusterName, "cluster", "", "AWS cluster name for which we create credentials (required)")
 	flag.StringVar(&c.STSRegion, "stsregion", DefaultSTSRegion, "AWS STS region to which requests are made (optional)")
@@ -73,12 +76,9 @@ func (c *Config) LoadFromFlags() error {
 
 // validate checks if the configuration is valid
 func (c *Config) validate() error {
-	// Validate log level
-	switch c.LogLevel {
-	case "debug", "info", "warn", "error":
-		// Valid log level
-	default:
-		return fmt.Errorf("invalid log level: %s (must be debug, info, warn, or error)", c.LogLevel)
+	// Validate log verbosity
+	if c.LogVerbosity < 0 || c.LogVerbosity > 5 {
+		return fmt.Errorf("invalid log verbosity: %d (must be between 0 and 5)", c.LogVerbosity)
 	}
 
 	if c.AWSRoleARN == "" {
