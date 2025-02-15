@@ -43,6 +43,7 @@ type Config struct {
 
 	// Runtime configuration
 	HybridMode bool // When true, allows running outside GCP with fallback mechanisms
+	Cache      bool // When true, enables credential caching
 }
 
 // NewConfig creates a new configuration instance with defaults
@@ -64,6 +65,7 @@ func (c *Config) LoadFromFlags() error {
 	flag.StringVar(&c.EKSClusterName, "cluster", "", "AWS cluster name for which we create credentials (required)")
 	flag.StringVar(&c.STSRegion, "stsregion", DefaultSTSRegion, "AWS STS region to which requests are made (optional)")
 	flag.BoolVar(&c.HybridMode, "hybrid", false, "Enable hybrid mode to run outside GCP with fallback mechanisms")
+	flag.BoolVar(&c.Cache, "cache", false, "Enable credential caching")
 
 	flag.Parse()
 

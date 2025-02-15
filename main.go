@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"argocd-k8s-auth-gke-wli-eks/pkg/aws"
+	"argocd-k8s-auth-gke-wli-eks/pkg/cache"
 	"argocd-k8s-auth-gke-wli-eks/pkg/config"
 	"argocd-k8s-auth-gke-wli-eks/pkg/gcp"
 	"argocd-k8s-auth-gke-wli-eks/pkg/k8s"
@@ -14,7 +15,7 @@ import (
 )
 
 const (
-	presignedURLExpiration = 15 * time.Minute
+	presignedURLExpiration = 30 * time.Minute
 )
 
 // gcpTokenRetriever implements aws.TokenRetriever interface
@@ -42,6 +43,35 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
 	defer logger.Flush()
+
+	// Initialize cache if enabled
+	var credCache *cache.Cache
+	if cfg.Cache {
+		logger.Debug("initializing credential cache")
+		var err error
+		credCache, err = cache.NewCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %w", err)
+		}
+	}
+
+	// Create cache key
+	cacheKey := cache.CacheKey{
+		AWSRoleARN:     cfg.AWSRoleARN,
+		EKSClusterName: cfg.EKSClusterName,
+		STSRegion:      cfg.STSRegion,
+	}
+
+	// Check cache for existing credentials
+	if cfg.Cache && credCache != nil {
+		if cachedCred, found := credCache.Get(cacheKey); found {
+			logger.Debug("using cached credentials")
+			if _, err := fmt.Fprint(os.Stdout, string(cachedCred)); err != nil {
+				return fmt.Errorf("failed to write cached credential: %w", err)
+			}
+			return nil
+		}
+	}
 
 	// Initialize metadata provider based on configuration
 	var metadataProvider gcp.MetadataProvider
@@ -98,6 +128,13 @@ func run(ctx context.Context) error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to generate exec credential: %w", err)
+	}
+
+	// Cache the credential if caching is enabled
+	if cfg.Cache && credCache != nil {
+		if err := credCache.Put(cacheKey, execCred, time.Now().Add(presignedURLExpiration)); err != nil {
+			logger.Debug("failed to cache credential: %v", err)
+		}
 	}
 
 	// Write the credential to stdout
