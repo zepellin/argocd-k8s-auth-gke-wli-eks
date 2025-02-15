@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"argocd-k8s-auth-gke-wli-eks/pkg/config"
 	"argocd-k8s-auth-gke-wli-eks/pkg/gcp"
 	"argocd-k8s-auth-gke-wli-eks/pkg/k8s"
+	"argocd-k8s-auth-gke-wli-eks/pkg/logger"
 )
 
 const (
@@ -26,22 +26,6 @@ func (t *gcpTokenRetriever) GetIdentityToken() ([]byte, error) {
 	return t.token, nil
 }
 
-// getLogLevel converts string level to slog.Level
-func getLogLevel(level string) slog.Level {
-	switch level {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}
-
 func run(ctx context.Context) error {
 	// Load configuration
 	cfg := config.NewConfig()
@@ -50,10 +34,14 @@ func run(ctx context.Context) error {
 	}
 
 	// Initialize logger with configured level
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level:     getLogLevel(cfg.LogLevel),
-		AddSource: true,
-	}))
+	if err := logger.Initialize(logger.Config{
+		Level:     0, // Base level
+		Verbosity: cfg.LogVerbosity,
+		ToFile:    cfg.LogToFile,
+	}); err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
+	defer logger.Flush()
 
 	// Initialize metadata provider based on configuration
 	var metadataProvider gcp.MetadataProvider
@@ -71,7 +59,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to create session identifier: %w", err)
 	}
 
-	logger.Debug("created session identifier", "sessionID", sessionID)
+	logger.Debug("created session identifier: sessionID=%s", sessionID)
 
 	// Get GCP identity token
 	gcpToken, err := metadataProvider.GetIdentityToken(ctx, "gcp")
@@ -123,14 +111,16 @@ func run(ctx context.Context) error {
 func main() {
 	ctx := context.Background()
 
-	// Create default logger for main function
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level:     slog.LevelInfo,
-		AddSource: true,
-	}))
-
 	if err := run(ctx); err != nil {
-		logger.Error("program failed", "error", err)
+		// Initialize minimal logger for fatal errors
+		if err := logger.Initialize(logger.Config{
+			Level:     0,
+			Verbosity: 0,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+			os.Exit(1)
+		}
+		logger.Errorf(err, "program failed")
 		os.Exit(1)
 	}
 }

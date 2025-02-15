@@ -23,3 +23,4 @@ jobs:
         goarch: ${{ matrix.goarch }}
         binary_name: "k8s-auth-gke-wli-eks"
         compress_assets: "OFF"
+        goversion: "./go.mod"
