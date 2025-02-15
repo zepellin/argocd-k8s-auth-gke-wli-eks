@@ -26,10 +26,21 @@ func (t *gcpTokenRetriever) GetIdentityToken() ([]byte, error) {
 	return t.token, nil
 }
 
-var logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-	Level:     slog.LevelInfo,
-	AddSource: true,
-}))
+// getLogLevel converts string level to slog.Level
+func getLogLevel(level string) slog.Level {
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
 
 func run(ctx context.Context) error {
 	// Load configuration
@@ -38,8 +49,21 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Initialize GCP metadata client
-	metadataProvider := gcp.NewMetadataProvider(cfg.HTTPTimeout)
+	// Initialize logger with configured level
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     getLogLevel(cfg.LogLevel),
+		AddSource: true,
+	}))
+
+	// Initialize metadata provider based on configuration
+	var metadataProvider gcp.MetadataProvider
+	if cfg.HybridMode {
+		logger.Debug("running in hybrid mode")
+		metadataProvider = gcp.NewHybridMetadataProvider(cfg.HTTPTimeout)
+	} else {
+		logger.Debug("running in GCP-only mode")
+		metadataProvider = gcp.NewMetadataProvider(cfg.HTTPTimeout)
+	}
 
 	// Get session identifier
 	sessionID, err := metadataProvider.CreateSessionIdentifier(ctx)
@@ -47,7 +71,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to create session identifier: %w", err)
 	}
 
-	logger.Info("created session identifier", "sessionID", sessionID)
+	logger.Debug("created session identifier", "sessionID", sessionID)
 
 	// Get GCP identity token
 	gcpToken, err := metadataProvider.GetIdentityToken(ctx, "gcp")
@@ -70,7 +94,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to get AWS credentials: %w", err)
 	}
 
-	logger.Info("retrieved AWS credentials")
+	logger.Debug("retrieved AWS credentials")
 
 	// Get presigned URL
 	presignedURL, err := awsAuth.GetPresignedCallerIdentityURL(ctx, cfg.EKSClusterName, awsCreds)
@@ -98,6 +122,12 @@ func run(ctx context.Context) error {
 
 func main() {
 	ctx := context.Background()
+
+	// Create default logger for main function
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelInfo,
+		AddSource: true,
+	}))
 
 	if err := run(ctx); err != nil {
 		logger.Error("program failed", "error", err)
