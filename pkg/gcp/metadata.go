@@ -4,7 +4,6 @@ package gcp
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -19,9 +18,16 @@ type MetadataProvider interface {
 	CreateSessionIdentifier(ctx context.Context) (string, error)
 }
 
+// MetadataClient defines the interface for metadata client operations
+type MetadataClient interface {
+	ProjectID() (string, error)
+	Hostname() (string, error)
+	Get(string) (string, error)
+}
+
 // GCPMetadata implements the MetadataProvider interface
 type GCPMetadata struct {
-	client *metadata.Client
+	client MetadataClient
 }
 
 // NewMetadataProvider creates a new GCP metadata provider
@@ -51,30 +57,11 @@ func (g *GCPMetadata) Hostname(ctx context.Context) (string, error) {
 
 // GetIdentityToken retrieves a GCP identity token
 func (g *GCPMetadata) GetIdentityToken(ctx context.Context, audience string) ([]byte, error) {
-	url := fmt.Sprintf("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?format=full&audience=%s", audience)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create identity token request: %w", err)
-	}
-
-	req.Header.Set("Metadata-Flavor", "Google")
-
-	resp, err := http.DefaultClient.Do(req)
+	token, err := g.client.Get("instance/service-accounts/default/identity?format=full&audience=" + audience)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve identity token: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code retrieving identity token: %d", resp.StatusCode)
-	}
-
-	token, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read identity token response: %w", err)
-	}
-
-	return token, nil
+	return []byte(token), nil
 }
 
 // CreateSessionIdentifier creates a unique session identifier from GCP metadata
