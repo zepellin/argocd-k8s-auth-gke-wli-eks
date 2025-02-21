@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"argocd-k8s-auth-gke-wli-eks/pkg/logger"
@@ -33,6 +34,7 @@ type CacheEntry struct {
 // Cache handles credential caching operations
 type Cache struct {
 	cacheDir string
+	mu       sync.RWMutex
 }
 
 // NewCache creates a new cache instance
@@ -46,7 +48,7 @@ func NewCache() (*Cache, error) {
 		cacheDir = filepath.Join(homeDir, ".kube", "cache", "argocd-k8s-auth-gke-wli-eks")
 		if err := os.MkdirAll(cacheDir, 0700); err == nil {
 			logger.Debug("using cache directory: %s", cacheDir)
-			return &Cache{cacheDir: cacheDir}, nil
+			return &Cache{cacheDir: cacheDir, mu: sync.RWMutex{}}, nil
 		}
 		logger.Warning("failed to create cache directory in home directory: %v", err)
 	} else {
@@ -59,7 +61,7 @@ func NewCache() (*Cache, error) {
 		cacheDir = filepath.Join(cacheDir, "argocd-k8s-auth-gke-wli-eks")
 		if err := os.MkdirAll(cacheDir, 0700); err == nil {
 			logger.Debug("using cache directory: %s", cacheDir)
-			return &Cache{cacheDir: cacheDir}, nil
+			return &Cache{cacheDir: cacheDir, mu: sync.RWMutex{}}, nil
 		}
 		logger.Warning("failed to create cache directory in user cache directory: %v", err)
 
@@ -72,7 +74,7 @@ func NewCache() (*Cache, error) {
 	cacheDir = filepath.Join(cacheDir, "argocd-k8s-auth-gke-wli-eks")
 	if err := os.MkdirAll(cacheDir, 0700); err == nil {
 		logger.Debug("using cache directory: %s", cacheDir)
-		return &Cache{cacheDir: cacheDir}, nil
+		return &Cache{cacheDir: cacheDir, mu: sync.RWMutex{}}, nil
 	}
 	logger.Warning("failed to create cache directory in temporary directory: %v", err)
 
@@ -81,6 +83,9 @@ func NewCache() (*Cache, error) {
 
 // Get retrieves cached credentials if they exist and are still valid
 func (c *Cache) Get(key CacheKey) ([]byte, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	cacheFile := c.getCacheFilePath(key)
 
 	data, err := os.ReadFile(cacheFile)
@@ -107,6 +112,9 @@ func (c *Cache) Get(key CacheKey) ([]byte, bool) {
 
 // Put stores credentials in the cache
 func (c *Cache) Put(key CacheKey, execCredential []byte, expirationTime time.Time) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	entry := CacheEntry{
 		ExecCredential: execCredential,
 		ExpirationTime: expirationTime,
