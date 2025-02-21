@@ -1,6 +1,6 @@
 module argocd-k8s-auth-gke-wli-eks
 
-go 1.23.0
+go 1.23.6
 
 toolchain go1.24.0
 
