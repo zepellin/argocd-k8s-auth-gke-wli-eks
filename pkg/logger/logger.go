@@ -107,7 +107,3 @@ func V(level int) bool {
 	return logger.Enabled(nil, slogLevel)
 }
 
-// Flush ensures all pending log writes are completed
-func Flush() {
-	// slog handles flushing automatically
-}
