@@ -42,7 +42,6 @@ func run(ctx context.Context) error {
 	}); err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
-	defer logger.Flush()
 
 	// Initialize cache if enabled
 	var credCache *cache.Cache
