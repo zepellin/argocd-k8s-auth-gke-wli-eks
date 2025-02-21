@@ -101,7 +101,7 @@ func run(ctx context.Context) error {
 	tokenRetriever := &gcpTokenRetriever{token: gcpToken}
 
 	// Initialize AWS authenticator
-	awsAuth, err := aws.NewAuthenticator(ctx, cfg.AWSRoleARN, sessionID, cfg.STSRegion, tokenRetriever)
+	awsAuth, err := aws.NewAuthenticator(ctx, cfg.AWSRoleARN, sessionID, cfg.STSRegion, tokenRetriever, "")
 	if err != nil {
 		return fmt.Errorf("failed to create AWS authenticator: %w", err)
 	}

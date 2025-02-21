@@ -3,8 +3,8 @@ package gcp
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
-	"math/rand"
 	"os"
 	"time"
 
@@ -26,10 +26,13 @@ type HybridMetadata struct {
 func NewHybridMetadataProvider(timeout time.Duration) MetadataProvider {
 	// Check if we're running on GCP
 	isOnGCP := metadata.OnGCE()
+	client := metadata.NewClient(&http.Client{Timeout: timeout})
 
 	return &HybridMetadata{
-		gcpMetadata: &GCPMetadata{client: metadata.NewClient(&http.Client{Timeout: timeout})},
-		isOnGCP:     isOnGCP,
+		gcpMetadata: &GCPMetadata{
+			client: client,
+		},
+		isOnGCP: isOnGCP,
 	}
 }
 
@@ -40,8 +43,6 @@ func (h *HybridMetadata) ProjectID(ctx context.Context) (string, error) {
 	}
 
 	// When not on GCP, use a consistent project ID for the session
-
-	// Use a randomly generated but consistent project ID for this process
 	return fmt.Sprintf("external-project-%s", generateRandomString(8)), nil
 }
 
@@ -109,12 +110,20 @@ func (h *HybridMetadata) CreateSessionIdentifier(ctx context.Context) (string, e
 	return sessionID, nil
 }
 
-// generateRandomString generates a random string of given length
+// generateRandomString generates a cryptographically secure random string of given length
 func generateRandomString(n int) string {
 	b := make([]byte, n)
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := range b {
-		b[i] = letterBytes[r.Intn(len(letterBytes))]
+	r := make([]byte, n)
+	if _, err := rand.Read(r); err != nil {
+		// If crypto/rand fails, return a deterministic string rather than crashing
+		for i := range b {
+			b[i] = letterBytes[i%len(letterBytes)]
+		}
+		return string(b)
+	}
+
+	for i := 0; i < n; i++ {
+		b[i] = letterBytes[r[i]%byte(len(letterBytes))]
 	}
 	return string(b)
 }
