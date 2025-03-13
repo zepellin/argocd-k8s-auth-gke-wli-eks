@@ -8,7 +8,14 @@
   "schedule": [
     "before 7am on the first day of the month"
   ],
-  "rebaseWhen": "conflicted",
+  "rebaseWhen": "behind-base-branch",
   "separateMajorMinor": true,
-  "separateMinorPatch": true
+  "separateMinorPatch": true,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true
 }
