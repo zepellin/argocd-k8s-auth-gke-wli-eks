@@ -6,7 +6,7 @@
   ],
   "timezone": "Europe/Madrid",
   "schedule": [
-    "* 20-23 * * *"
+    "before 7am on the first day of the month"
   ],
   "rebaseWhen": "behind-base-branch",
   "separateMajorMinor": true,
@@ -14,5 +14,8 @@
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true
-  }
+  },
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true
 }
