@@ -23,7 +23,7 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
-        binary_name: "janus"
+        binary_name: "k8s-auth-gke-wli-eks"
         compress_assets: "OFF"
         goversion: "./go.mod"
         ldflags: "-s -w"
