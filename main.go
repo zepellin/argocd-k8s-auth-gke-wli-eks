@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	presignedURLExpiration = 15 * time.Minute
+	presignedURLExpiration = config.DefaultTokenExpiryMinutes * time.Minute
 )
 
 // gcpTokenRetriever implements aws.TokenRetriever interface
@@ -36,11 +36,17 @@ func run(ctx context.Context) error {
 
 	// Initialize logger with configured level
 	if err := logger.Initialize(logger.Config{
-		Level:     0, // Base level
 		Verbosity: cfg.LogVerbosity,
 		ToFile:    cfg.LogToFile,
 	}); err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	// Create cache key
+	cacheKey := cache.CacheKey{
+		AWSRoleARN:     cfg.AWSRoleARN,
+		EKSClusterName: cfg.EKSClusterName,
+		STSRegion:      cfg.STSRegion,
 	}
 
 	// Initialize cache if enabled
@@ -52,23 +58,16 @@ func run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to initialize cache: %w", err)
 		}
-	}
 
-	// Create cache key
-	cacheKey := cache.CacheKey{
-		AWSRoleARN:     cfg.AWSRoleARN,
-		EKSClusterName: cfg.EKSClusterName,
-		STSRegion:      cfg.STSRegion,
-	}
-
-	// Check cache for existing credentials
-	if cfg.Cache && credCache != nil {
-		if cachedCred, found := credCache.Get(cacheKey); found {
-			logger.Debug("using cached credentials")
-			if _, err := fmt.Fprint(os.Stdout, string(cachedCred)); err != nil {
-				return fmt.Errorf("failed to write cached credential: %w", err)
+		// Check cache for existing credentials
+		if cfg.Cache && credCache != nil {
+			if cachedCred, found := credCache.Get(cacheKey); found {
+				logger.Debug("using cached credentials")
+				if _, err := fmt.Fprint(os.Stdout, string(cachedCred)); err != nil {
+					return fmt.Errorf("failed to write cached credential: %w", err)
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 
@@ -114,7 +113,7 @@ func run(ctx context.Context) error {
 	logger.Debug("retrieved AWS credentials")
 
 	// Get presigned URL
-	presignedURL, err := awsAuth.GetPresignedCallerIdentityURL(ctx, cfg.EKSClusterName, awsCreds)
+	presignedURL, err := awsAuth.GetPresignedCallerIdentityURL(ctx, cfg.EKSClusterName, awsCreds, presignedURLExpiration)
 	if err != nil {
 		return fmt.Errorf("failed to get presigned URL: %w", err)
 	}
@@ -150,7 +149,6 @@ func main() {
 	if err := run(ctx); err != nil {
 		// Initialize minimal logger for fatal errors
 		if err := logger.Initialize(logger.Config{
-			Level:     0,
 			Verbosity: 0,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)

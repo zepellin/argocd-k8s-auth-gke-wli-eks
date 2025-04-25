@@ -12,7 +12,6 @@ var (
 
 // Config holds logger configuration
 type Config struct {
-	Level     int    // Log level (0-5)
 	ToFile    string // Log file path (empty for stderr)
 	Verbosity int    // Verbosity level for debug logs
 }
@@ -34,14 +33,16 @@ func Initialize(config Config) error {
 	// Convert level to slog.Level
 	var level slog.Level
 	switch {
-	case config.Level <= 0:
+	case config.Verbosity <= 0:
 		level = slog.LevelError
-	case config.Level == 1:
+	case config.Verbosity == 1:
 		level = slog.LevelWarn
-	case config.Level == 2:
+	case config.Verbosity == 2:
 		level = slog.LevelInfo
-	default:
+	case config.Verbosity == 3:
 		level = slog.LevelDebug
+	default:
+		level = slog.LevelError
 	}
 
 	opts := &slog.HandlerOptions{
@@ -89,21 +90,3 @@ func Debug(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	logger.Debug(msg)
 }
-
-// V returns true if the verbosity level is at least the requested level
-func V(level int) bool {
-	// Convert level to slog.Level for comparison
-	var slogLevel slog.Level
-	switch level {
-	case 0:
-		slogLevel = slog.LevelError
-	case 1:
-		slogLevel = slog.LevelWarn
-	case 2:
-		slogLevel = slog.LevelInfo
-	default:
-		slogLevel = slog.LevelDebug
-	}
-	return logger.Enabled(nil, slogLevel)
-}
-

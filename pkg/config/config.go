@@ -59,7 +59,7 @@ func NewConfig() *Config {
 
 // LoadFromFlags loads configuration from command line flags
 func (c *Config) LoadFromFlags() error {
-	flag.IntVar(&c.LogVerbosity, "v", 0, "Log verbosity level (0-5)")
+	flag.IntVar(&c.LogVerbosity, "v", 0, "Log verbosity level (0-3)")
 	flag.StringVar(&c.LogToFile, "log-file", "", "Path to log file (empty for stderr)")
 	flag.StringVar(&c.AWSRoleARN, "rolearn", "", "AWS role ARN to assume (required)")
 	flag.StringVar(&c.EKSClusterName, "cluster", "", "AWS cluster name for which we create credentials (required)")
@@ -79,8 +79,8 @@ func (c *Config) LoadFromFlags() error {
 // validate checks if the configuration is valid
 func (c *Config) validate() error {
 	// Validate log verbosity
-	if c.LogVerbosity < 0 || c.LogVerbosity > 5 {
-		return fmt.Errorf("invalid log verbosity: %d (must be between 0 and 5)", c.LogVerbosity)
+	if c.LogVerbosity < 0 || c.LogVerbosity > 3 {
+		return fmt.Errorf("invalid log verbosity: %d (must be between 0 and 3)", c.LogVerbosity)
 	}
 
 	if c.AWSRoleARN == "" {

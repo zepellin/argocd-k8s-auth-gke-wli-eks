@@ -3,14 +3,19 @@ package aws
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 	smithyendpoints "github.com/aws/smithy-go/endpoints"
+
+	"argocd-k8s-auth-gke-wli-eks/pkg/config"
 )
 
 // TokenRetriever interface to retrieve identity token
@@ -29,6 +34,37 @@ func (p *webIdentityTokenProvider) GetIdentityToken() ([]byte, error) {
 
 type resolverV2 struct {
 	url *string
+}
+
+// CustomPresigner adds custom headers to STS presigned URLs
+type CustomPresigner struct {
+	client  sts.HTTPPresignerV4
+	headers map[string]string
+}
+
+// NewCustomPresigner creates a new custom presigner with specified headers
+func NewCustomPresigner(client sts.HTTPPresignerV4, headers map[string]string) sts.HTTPPresignerV4 {
+	return &CustomPresigner{
+		client:  client,
+		headers: headers,
+	}
+}
+
+// PresignHTTP implements the HTTPPresignerV4 interface with custom header support
+func (p *CustomPresigner) PresignHTTP(
+	ctx context.Context,
+	credentials aws.Credentials,
+	r *http.Request,
+	payloadHash string,
+	service string,
+	region string,
+	signingTime time.Time,
+	optFns ...func(*v4.SignerOptions),
+) (string, http.Header, error) {
+	for key, val := range p.headers {
+		r.Header.Add(key, val)
+	}
+	return p.client.PresignHTTP(ctx, credentials, r, payloadHash, service, region, signingTime, optFns...)
 }
 
 func (r *resolverV2) ResolveEndpoint(ctx context.Context, params sts.EndpointParameters) (
@@ -99,7 +135,7 @@ func (a *Authenticator) GetCredentials(ctx context.Context) (*types.Credentials,
 }
 
 // GetPresignedCallerIdentityURL gets a presigned URL for EKS cluster authentication
-func (a *Authenticator) GetPresignedCallerIdentityURL(ctx context.Context, clusterName string, creds *types.Credentials) (string, error) {
+func (a *Authenticator) GetPresignedCallerIdentityURL(ctx context.Context, clusterName string, creds *types.Credentials, expiration time.Duration) (string, error) {
 	cfg, err := a.getAWSConfig(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get AWS config: %w", err)
@@ -117,20 +153,25 @@ func (a *Authenticator) GetPresignedCallerIdentityURL(ctx context.Context, clust
 	// Get caller identity and generate presigned URL
 	input := &sts.GetCallerIdentityInput{}
 	presigner := sts.NewPresignClient(stsClient)
-	output, err := presigner.PresignGetCallerIdentity(ctx, input)
+	output, err := presigner.PresignGetCallerIdentity(ctx, input, func(opt *sts.PresignOptions) {
+		opt.Presigner = NewCustomPresigner(opt.Presigner, map[string]string{
+			config.HeaderEKSClusterID: clusterName,
+			config.HeaderExpires:      fmt.Sprintf("%.0f", expiration.Seconds()),
+		})
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to presign get caller identity: %w", err)
 	}
 
 	// Add cluster name to the URL as a query parameter
-	presignedURL := fmt.Sprintf("%s&cluster-name=%s", output.URL, clusterName)
+	presignedURL := fmt.Sprintf("%s", output.URL)
 
 	return presignedURL, nil
 }
 
 func (a *Authenticator) getAWSConfig(ctx context.Context) (*aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(a.stsRegion),
+	cfg, err := awsConfig.LoadDefaultConfig(ctx,
+		awsConfig.WithRegion(a.stsRegion),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default AWS config: %w", err)

@@ -40,7 +40,6 @@ func TestInitialize(t *testing.T) {
 		{
 			name: "basic configuration",
 			config: Config{
-				Level:     1,
 				Verbosity: 1,
 			},
 			wantErr: false,
@@ -48,7 +47,6 @@ func TestInitialize(t *testing.T) {
 		{
 			name: "with file output",
 			config: Config{
-				Level:     2,
 				ToFile:    tempDir + "/test.log",
 				Verbosity: 2,
 			},
@@ -161,28 +159,6 @@ func TestLoggingFunctions(t *testing.T) {
 
 		if entry["key1"] != "value1" {
 			t.Errorf("got key1=%v, want 'value1'", entry["key1"])
-		}
-	})
-
-	// Test V function
-	t.Run("V level tests", func(t *testing.T) {
-		tests := []struct {
-			level    int
-			config   Config
-			expected bool
-		}{
-			{level: 0, config: Config{Level: 0}, expected: true},  // ERROR
-			{level: 1, config: Config{Level: 1}, expected: true},  // WARN
-			{level: 2, config: Config{Level: 1}, expected: false}, // INFO vs WARN
-			{level: 3, config: Config{Level: 2}, expected: false}, // DEBUG vs INFO
-		}
-
-		for _, tt := range tests {
-			Initialize(tt.config)
-			if got := V(tt.level); got != tt.expected {
-				t.Errorf("V(%d) with level %d = %v; want %v",
-					tt.level, tt.config.Level, got, tt.expected)
-			}
 		}
 	})
 }
