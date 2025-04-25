@@ -11,7 +11,7 @@ import (
 
 func init() {
 	// Initialize logger with debug level for tests
-	if err := logger.Initialize(logger.Config{Level: 2, Verbosity: 1}); err != nil {
+	if err := logger.Initialize(logger.Config{Verbosity: 1}); err != nil {
 		panic(err)
 	}
 }

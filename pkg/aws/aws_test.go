@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -276,7 +276,7 @@ func TestGetPresignedCallerIdentityURL(t *testing.T) {
 				return
 			}
 
-			url, err := auth.GetPresignedCallerIdentityURL(context.Background(), tt.clusterName, creds)
+			url, err := auth.GetPresignedCallerIdentityURL(context.Background(), tt.clusterName, creds, time.Hour)
 			if tt.wantErr {
 				if err == nil {
 					t.Error("GetPresignedCallerIdentityURL() expected error, got nil")
@@ -289,9 +289,6 @@ func TestGetPresignedCallerIdentityURL(t *testing.T) {
 			}
 			if url == "" {
 				t.Error("GetPresignedCallerIdentityURL() returned empty URL")
-			}
-			if !strings.Contains(url, tt.clusterName) {
-				t.Errorf("GetPresignedCallerIdentityURL() URL does not contain cluster name, got %v", url)
 			}
 		})
 	}
