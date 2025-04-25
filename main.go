@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	presignedURLExpiration = 30 * time.Minute
+	presignedURLExpiration = 15 * time.Minute
 )
 
 // gcpTokenRetriever implements aws.TokenRetriever interface
